@@ -1,0 +1,38 @@
+body > div { position: absolute; top: 0; right: 0; bottom: 43px; left: 0; padding: 8px; overflow: scroll; }
+div > div { margin-left: 40px; }
+span { font-size: 42px; }
+div > div span { font-size: 24px; }
+div > .object > span, div > .array > span { font-size: 32px; }
+div:first-child > textarea { display: none; }
+textarea { vertical-align: top; resize: none; margin: 2px 0 0 16px; width: 480px; height: 16px; }
+textarea.smallest { width: 160px; }
+textarea.larger, textarea.largest { margin-bottom: 4px; }
+textarea.larger { height: 48px; }
+textarea.largest { height: 144px; }
+.array > .string > textarea { margin-left: 32px; }
+.array > div + div { margin-top: 12px; }
+.object > div + div { margin-top: 2px; }
+.array > div > span, .array > span, .object > span { font-weight: bold; }
+.array > span, .object > span { display: block; margin-bottom: 16px; }
+.array + .array > span, .array + .object > span, .object + .array > span, .object + .object > span { margin-top: 16px; }
+.array > .object > span { margin-top: 0; }
+.array > div > span { cursor: pointer; width: 32px; position: absolute; font-size: 32px; margin: 0; line-height: 24px; color: #888; }
+.array > div > div { margin-left: 40px; }
+.array > div:nth-child(2) { display: none; }
+.array > .above > span + span, .array > .below > span + span { cursor: pointer; position: static; font-size: 18px; font-weight: normal; border-width: 1px; border-style: solid; padding: 2px 8px; }
+.array > .above > span.add, .array > .below > span.add { border-color: #080; background: #cfc; color: #282; }
+.array > .above > span.remove, .array > .below > span.remove { margin-left: 4px; border-color: #800; background: #fcc; color: #822; }
+.array > .above > span.clear, .array > .below > span.clear { margin-left: 4px; border-color: #880; background: #ffc; color: #882; }
+.array > .above > .string, .array > .above > .object, .array > .above > .array, .array > .below > .string, .array > .below > .object, .array > .below > .array { display: none; }
+.above, .below { display: inline-block; position: relative; }
+.above { padding-top: 10px; }
+.below { padding-bottom: 10px; }
+.array > .above > span:first-child, .array > .below > span:first-child { width: auto; height: 4px; border: 1px solid #008; background: #ccf; left: 0; right: 0; }
+.array > .above > span:first-child { top: -1px; }
+.array > .below > span:first-child { top: 29px; }
+#send { background: #eee; border: 2px solid #444; color: #222; font-size: 27px; cursor: pointer; position: absolute; bottom: 0; right: 0; }
+#template-selector { position: absolute; top: 0; margin-left: 240px; padding: 12px 0; }
+#template-selector span:first-child { font-size: 24px; }
+#template-selector div { margin: 0; }
+#template-selector select { margin-left: 12px; font-size: 24px; }
+#template-selector input { position: relative; top: -1px; background: #eee; border: 2px solid #444; color: #222; font-size: 16px; margin-left: 16px; cursor: pointer; }
