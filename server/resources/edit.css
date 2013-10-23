@@ -1,17 +1,18 @@
 body > div { position: absolute; top: 0; right: 0; bottom: 43px; left: 0; padding: 8px; overflow: scroll; }
 div > div { margin-left: 40px; }
-span { font-size: 42px; }
+span { font-size: 36px; }
 div > div span { font-size: 24px; }
-div > .object > span, div > .array > span { font-size: 32px; }
+div > .object > span, div > .array > span { font-size: 24px; }
 div:first-child > textarea { display: none; }
 textarea { vertical-align: top; resize: none; margin: 2px 0 0 16px; width: 480px; height: 16px; }
 textarea.smallest { width: 160px; }
 textarea.larger, textarea.largest { margin-bottom: 4px; }
 textarea.larger { height: 48px; }
 textarea.largest { height: 144px; }
+.array { margin-bottom: 8px; }
 .array > .string > textarea { margin-left: 32px; }
 .array > div + div { margin-top: 12px; }
-.object > div + div { margin-top: 2px; }
+.object > div + div { margin-top: 4px; }
 .array > div > span, .array > span, .object > span { font-weight: bold; }
 .array > span, .object > span { display: block; margin-bottom: 16px; }
 .array + .array > span, .array + .object > span, .object + .array > span, .object + .object > span { margin-top: 16px; }

@@ -73,6 +73,11 @@ var readMultiple = function(names, reader, operation, callback) {
 	} else
 		callback();
 };
+var readProps = function(names, i, callback) {
+	fs.readFile(sysroot + '/pages' + names[i] + 'page.txt', function(err, file) {
+		callback(names, i, file ? file.toString() : undefined);
+	});
+};
 var readData = function(names, i, callback) {
 	fs.readFile(sysroot + '/components/json/' + names[i] + '.json', function(err, fD) {
 		callback(names, i, fD);
@@ -96,10 +101,9 @@ var readComponentAndData = function(names, i, callback) {
 
 var processPage = function(root, path, mode, success, failure, i) {
 	conditionalIntermediary(root === '/pages', function(operation) {
-		fs.readFile(sysroot + root + path + 'pageprops.json', function(err, pD) {
-			if (pD != undefined) {
-				var p = safeParse(pD, {});
-				operation(typeof p.template === 'string' ? p.template : null);
+		fs.readFile(sysroot + root + path + 'page.txt', function(err, file) {
+			if (file) {
+				operation(file);
 			} else {
 				failure('Connot find properties file');
 			}
@@ -189,6 +193,13 @@ var buildLoginPage = function() {
 	return result + '</body></html>';
 };
 
+var buildOverviewForm = function() {
+	var result = '<!doctype html><html><head>';
+	result += '<link href="/server/resources/overview.css" rel="stylesheet" />';
+	result += '<script type="text/javascript" src="/server/resources/overview.js"></script>';
+	return result + '</head><body><h1></h1><div><div class="children"></div></div></body></html>';
+}
+
 var safeParse = function(json, fallback) {
 	var result = fallback;
 	try {
@@ -274,7 +285,7 @@ http.createServer(function (req, res) {
 				authenticate = true;
 				path = path.substring(2);
 			}
-			if (path.match(/^\/[esmud]\//g)) {
+			if (path.match(/^\/[oesmud]\//g)) {
 				mode = path[1];
 				path = path.substring(2);
 			}
@@ -286,7 +297,48 @@ http.createServer(function (req, res) {
 				}
 				path = path.substring(2, path.length - 1);
 			}
-			if (mode === "s" || mode === "u") {
+			if (mode === "o") {
+				var data = '';
+		        req.on('data', function (segment) {
+		            data += segment;
+		        });
+		        req.on('end', function () {
+		        	if (!data) {
+						res.writeHead(200, {'Content-Type': 'text/html'});
+						res.end(buildOverviewForm());
+		        	} else {
+						fs.readdir(sysroot + root + path, function(err, files) {
+							var children = [];
+							if (!err && root === '/pages') {
+								var validFiles = [];
+								var validPaths = [];
+								for (var i = 0; i < files.length; i++) {
+									if (!files[i].match(/.*\.(json|txt)$/g)) {
+										validFiles.push(files[i]);
+										validPaths.push(path + files[i] + '/');
+									}
+								}
+								readMultiple(validPaths, readProps, function(i, file) {
+									children.push({"name": validFiles[i], "template": file});
+								}, function() {
+									res.writeHead(200, {'Content-Type': 'text/plain'});
+									res.end(JSON.stringify(children));
+								});
+							} else {
+								if (!err) {
+									for (var i = 0; i < files.length; i++) {
+										if (files[i].match(/.*\.txt$/g)) {
+											children.push({"name": files[i].substring(0, files[i].length - 4)});
+										}
+									}
+								}
+								res.writeHead(200, {'Content-Type': 'text/plain'});
+								res.end(JSON.stringify(children));
+							}
+						});
+					}
+				});
+			} else if (mode === "s" || mode === "u") {
 				var data = '';
 		        req.on('data', function (segment) {
 		            data += segment;
@@ -313,8 +365,7 @@ http.createServer(function (req, res) {
 									}, operation);
 								});
 							}, function() {
-								console.log(sysroot + root + path + (root === '/pages' ? 'pageprops.json' : '.txt'));
-								fs.writeFile(sysroot + root + path + (root === '/pages' ? 'pageprops.json' : '.txt'), data, function(err) {
+								fs.writeFile(sysroot + root + path + (root === '/pages' ? 'page' : '') + '.txt', data, function(err) {
 									if (!err) {
 										res.writeHead(200, {'Content-Type': 'text/plain'});
 										res.end('Update Successful');
@@ -340,10 +391,9 @@ http.createServer(function (req, res) {
 								templates.push(files[i].substring(0, files[i].length - 4));
 							}
 						}
-						fs.readFile(sysroot + root + path + 'pageprops.json', function(err, file) {
-							var json = safeParse(file, {});
+						fs.readFile(sysroot + root + path + 'page.txt', function(err, file) {
 							res.writeHead(200, {'Content-Type': 'text/html'});
-							res.end(buildPropsForm(templates, json.template));
+							res.end(buildPropsForm(templates, file));
 						});
 					});
 				} else {
@@ -355,7 +405,7 @@ http.createServer(function (req, res) {
 			} else if (mode === 'd') {
 				if (root === '/pages') {
 					fs.unlink(sysroot + root + path + 'page.json', function(err) {
-						fs.unlink(sysroot + root + path + 'pageprops.json', function(err2) {
+						fs.unlink(sysroot + root + path + 'page.txt', function(err2) {
 							fs.rmdir(sysroot + root + path, function(err3) {
 								if ((!err || err.errno === 34) && (!err2 || err2.errno === 34) && (!err3 || err3.errno === 34)) {
 									res.writeHead(200, {'Content-Type': 'text/plain'});
