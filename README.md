@@ -3,21 +3,21 @@ node-trpl
 
 Sets up a node server that stores page data as json and uses trpl templates to process them.
 
-Templates : used to render a page
+####Templates : used to render a page
 - /o/t/ = view all the templates and the options for each
 - /m/t/id/ = modify the template named 'id'
 - /e/t/id/ = modify the mockup json for the template
 - /d/t/id/ = delete the template named 'id'
 - /t/id/ = view the template output using its own mockup data
 
-Components : can be added to templates
+####Components : can be added to templates
 - /o/t/ = view all the components and the options for each
 - /m/c/id/ = modify the component named 'id'
 - /e/c/id/ = modify the json for the component
 - /d/t/id/ = delete the component named 'id'
 - /c/id/ = view the component output using its own mockup data
 
-Pages
+####Pages : what eventually gets seen on the site
 - /o/path/ = view all the pages below the page found at /path/ and the options for each
 - /m/path/ = modify which template to use for the page found at /path/
   - if page does not exist but parent folder does exist, it will be created
@@ -25,6 +25,8 @@ Pages
 - /d/path/ = delete the page found at /path/
   - only works if the page has no child pages
 - /path/ = view the page found at /path/
+
+####Additional Information
 
 Components can be added to template code by using {{id}} to tell it to process the 'id' component using the authored data for the component.
 - this can be used to create common site elements like headers and footers
