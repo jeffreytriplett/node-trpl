@@ -79,12 +79,43 @@ var readProps = function(names, i, callback) {
 	});
 };
 var readData = function(names, i, callback) {
-	fs.readFile(sysroot + '/components/json/' + names[i] + '.json', function(err, fD) {
-		callback(names, i, fD);
-	});
+	if (names[i].match(/^[a-zA-Z0-9]+\s*\|\s*(\/|http(s)?:\/\/)/g)) {
+		var name = names[i].split('|')[1].replace(/^\s+|\s+$/g,'');
+		if (name.indexOf('/') === 0) {
+			name = '127.0.0.1:' + port + name;
+		} else {
+			name = name.replace(/^http(s)?:\/\//g, '');
+		}
+		var host = name.split('/')[0];
+		var path = name.substring(host.length);
+		var port = 80;
+		if (host.indexOf(':') !== -1) {
+			port = host.split(':')[1];
+			host = host.split(':')[0];
+		}
+		http.get({host: host, port: port, path: path}, function(res) {
+			var data = '';
+		  	res.on('data', function (chunk) {
+				data += chunk;
+			});
+			res.on('end', function() {
+				callback(names, i, data);
+			});
+		}).on('error', function(e) {
+			callback(names, i, undefined);
+		});
+	} else {
+		name = names[i].split('|')[0].replace(/^\s+|\s+$/g,'');
+		if (names[i].match(/\|[^\s]+/g)) {
+			name += '.' + names[i].split('|')[1].replace(/^\s+|\s+$/g,'');
+		}
+		fs.readFile(sysroot + '/components/json/' + name + '.json', function(err, fD) {
+			callback(names, i, fD);
+		});
+	}
 };
 var readComponent = function(names, i, callback) {
-	fs.readFile(sysroot + '/components/' + names[i] + '.txt', function(err, tD) {
+	fs.readFile(sysroot + '/components/' + names[i].split('|')[0].replace(/^\s+|\s+$/g,'') + '.txt', function(err, tD) {
 		callback(names, i, tD ? tD.toString() : '');
 	});
 };
@@ -109,7 +140,7 @@ var processPage = function(root, path, mode, success, failure, i) {
 			}
 		});
 	}, function(templateProp) {
-		var template = templateProp !== undefined ? templateProp : path.substring(1);
+		var template = templateProp !== undefined ? templateProp : root === '/components' ? path.substring(1).split('/')[0] : path.substring(1);
 		if (template) {
 			fs.readFile(sysroot + (root === '/pages' ? '/templates/' : root + '/') + template + '.txt', function(err, file) {
 				if (file) {
@@ -209,41 +240,45 @@ var safeParse = function(json, fallback) {
 };
 
 var processTemplate = function(rawTemplate, root, path, mode, success, failure) {
-	fs.readFile(sysroot + root + (root !== '/pages' ? '/json' : '') + path + (root === '/pages' ? 'page' : '') + '.json', function(err, file) {
-		var template = root === '/pages' ? rawTemplate : root === '/templates' ? rawTemplate.replace(/{{{[a-zA-Z0-9]*}}}/g, function(m) { return m.substring(1, m.length - 1) }) : rawTemplate.replace(/{{{[a-zA-Z0-9]*}}}/g, ''),
+	fs.readFile(sysroot + root + (root !== '/pages' ? '/json' : '') + (root === '/components' ? '/' + path.substring(1).replace('/', '.') : path) + (root === '/pages' ? 'page' : '') + '.json', function(err, file) {
+		var template = root === '/pages' ? rawTemplate : root === '/templates' ? rawTemplate.replace(/\[[a-zA-Z0-9]*\]/g, function(m) { return '[' + m.substring(1, m.length - 1) + '|]' }) : rawTemplate.replace(/\[[a-zA-Z0-9]*\]/g, ''),
 			component = '',
 			data = safeParse(file),
 			txtMap = {},
-			keys = removeDuplicates(batchTrim(template.match(/{{{[a-zA-Z0-9]*}}}/g), 3, 3));
+			keys = removeDuplicates(batchTrim(template.match(/\[[a-zA-Z0-9]*\]/g), 1, 1));
 		readMultiple(keys, readComponent, function(i, file2) {
-			txtMap[keys[i]] = file2.replace(/{{{[a-zA-Z0-9]*}}}/g, '');
+			txtMap[keys[i]] = file2.replace(/\[[a-zA-Z0-9]*\]/g, '');
 		}, function() {
 			for (var id in txtMap) {
 				var i = 1;
-				template = template.replace(new RegExp('{{{' + id + '}}}', 'g'), function(m) {
+				template = template.replace(new RegExp('\\[' + id + '\\]', 'g'), function(m) {
 					return '{' + id + '_' + i++ + '|' + txtMap[id] + '}';
 				});
 			}
-			txtMap = {};
-			keys = removeDuplicates(batchTrim(template.match(/{{[a-zA-Z0-9]*}}/g), 2, 2));
-			readMultiple(keys, readComponentAndData, function(i, file3) {
-				component = file3.t.replace(/\\[{}]/g, function(m) { return '\\' + m; });
-				component = component.replace(/{{[a-zA-Z0-9]*}}/g, '');
-				txtMap[keys[i]] = trpl.process(component, safeParse(file3.d));
-			}, function() {
-				for (var id in txtMap) {
-					template = template.replace(new RegExp('{{' + id + '}}', 'g'), function(m) {
-						return txtMap[id];
-					});
-				}
-				if (mode === 'v') {
-					success(trpl.process(template, data));
-				} else if (mode === 'e') {
-					success(wrapEditForm(trpla.process(root === '/pages' ? 'Page Data' : 'Component Data', template, data)));
-				} else {
-					failure('Invalid Mode');
-				}
-			});
+			if (mode === 'e') {
+				success(wrapEditForm(trpla.process(root === '/pages' ? 'Page Data' : 'Component Data', template, data)));
+			} else {
+				template = trpl.process(template, data);
+				txtMap = {};
+				keys = removeDuplicates(batchTrim(template.match(/\[[a-zA-Z0-9]*\|[^\]]*\]/g), 1, 1));
+				readMultiple(keys, readComponentAndData, function(i, file3) {
+					component = file3.t.replace(/\[[a-zA-Z0-9]*(\|[^\]]*)?\]/, '');
+					txtMap[keys[i]] = trpl.process(component, safeParse(file3.d));
+				}, function() {
+					for (var id in txtMap) {
+						try {
+							template = template.replace(new RegExp('\\[' + id.replace('|', '\\|') + '\\]', 'g'), function(m) {
+								return txtMap[id];
+							});
+						} catch (e) {}
+					}
+					if (mode === 'v') {
+						success(template);
+					} else {
+						failure('Invalid Mode');
+					}
+				});
+			}
 		});
 	});
 }
@@ -307,9 +342,9 @@ http.createServer(function (req, res) {
 						res.writeHead(200, {'Content-Type': 'text/html'});
 						res.end(buildOverviewForm());
 		        	} else {
-						fs.readdir(sysroot + root + path, function(err, files) {
+						fs.readdir(sysroot + root + '/' + path.substring(1).split('/')[0] + '/', function(err, files) {
 							var children = [];
-							if (!err && root === '/pages') {
+							if (files && root === '/pages') {
 								var validFiles = [];
 								var validPaths = [];
 								for (var i = 0; i < files.length; i++) {
@@ -325,15 +360,30 @@ http.createServer(function (req, res) {
 									res.end(JSON.stringify(children));
 								});
 							} else {
-								if (!err) {
+								var map = {};
+								if (files) {
 									for (var i = 0; i < files.length; i++) {
 										if (files[i].match(/.*\.txt$/g)) {
-											children.push({"name": files[i].substring(0, files[i].length - 4)});
+											var name = files[i].substring(0, files[i].length - 4);
+											map[name] = true;
+											children.push({"name": name});
 										}
 									}
 								}
-								res.writeHead(200, {'Content-Type': 'text/plain'});
-								res.end(JSON.stringify(children));
+								fs.readdir(sysroot + root + '/json/', function(err, files2) {
+									if (files) {
+										for (var i = 0; i < files2.length; i++) {
+											if (files2[i].match(/.*\.json$/g)) {
+												var name = files2[i].substring(0, files2[i].length - 5);
+												if (!map[name]) {
+													children.push({"name": name});
+												}
+											}
+										}
+									}
+									res.writeHead(200, {'Content-Type': 'text/plain'});
+									res.end(JSON.stringify(children));
+								});
 							}
 						});
 					}
@@ -346,7 +396,7 @@ http.createServer(function (req, res) {
 		        req.on('end', function () {
 		        	if (data) {
 			        	if (mode === "s") {
-							fs.writeFile(sysroot + root + (root !== '/pages' ? '/json' : '') + path + (root === '/pages' ? 'page' : '') + '.json', data, function(err) {
+							fs.writeFile(sysroot + root + (root !== '/pages' ? '/json' : '') + (root === '/components' ? '/' + path.substring(1).replace('/', '.') : path) + (root === '/pages' ? 'page' : '') + '.json', data, function(err) {
 								if (!err) {
 									res.writeHead(200, {'Content-Type': 'text/plain'});
 									res.end('Save Successful');
@@ -365,7 +415,7 @@ http.createServer(function (req, res) {
 									}, operation);
 								});
 							}, function() {
-								fs.writeFile(sysroot + root + path + (root === '/pages' ? 'page' : '') + '.txt', data, function(err) {
+								fs.writeFile(sysroot + root + (root === '/components' ? '/' + path.substring(1).split('/')[0] : path) + (root === '/pages' ? 'page' : '') + '.txt', data, function(err) {
 									if (!err) {
 										res.writeHead(200, {'Content-Type': 'text/plain'});
 										res.end('Update Successful');
@@ -397,7 +447,7 @@ http.createServer(function (req, res) {
 						});
 					});
 				} else {
-					fs.readFile(sysroot + root + path + '.txt', function(err, file) {
+					fs.readFile(sysroot + root + (root === '/components' ? '/' + path.substring(1).split('/')[0] : path) + '.txt', function(err, file) {
 						res.writeHead(200, {'Content-Type': 'text/html'});
 						res.end(buildCodeForm(file ? file.toString() : ''));
 					});
@@ -418,8 +468,12 @@ http.createServer(function (req, res) {
 						});
 					});
 				} else {
-					fs.unlink(sysroot + root + '/json' + path + '.json', function(err) {
-						fs.unlink(sysroot + root + path + '.txt', function(err2) {
+					fs.unlink(sysroot + root + '/json/' + path.substring(1).replace('/', '.') + '.json', function(err) {
+						conditionalIntermediary(path.substring(1).indexOf('/') === -1, function(operation) {
+							fs.unlink(sysroot + root + path + '.txt', function(err2) {
+								operation(err2);
+							});
+						}, function(err2) {
 							if ((!err || err.errno === 34) && (!err2 || err2.errno === 34)) {
 								res.writeHead(200, {'Content-Type': 'text/plain'});
 								res.end(!err || !err2 ? 'Delete successful' : 'Nothing to delete');

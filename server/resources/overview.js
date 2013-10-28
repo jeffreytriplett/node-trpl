@@ -16,8 +16,9 @@ window.onload = function() {
 				var html = '';
 				if (data.length > 0) {
 					for (var i = 0; i < data.length; i++) {
-						html += '<div id="' + targetId + data[i].name + '/">' + (isPage ? '<span class="fetch">+</span>' : '') + '<span class="name">' + data[i].name + '</span>' + (data[i].template ? ' : <span class="template">' + data[i].template  + '</span>': '');
-						html += ' | <a href="/d' + targetId + data[i].name + '/" target="_blank">Delete</a> | <a href="/m' + targetId + data[i].name + '/" target="_blank">Modify</a> | <a href="/e' + targetId + data[i].name + '/" target="_blank">Edit</a> | <a href="' + targetId + data[i].name + '/" target="_blank">View</a><div class="children"></div></div>';
+						var name = data[i].name.replace('.', '/');
+						html += '<div id="' + targetId + name + '/">' + (isPage ? '<span class="fetch">+</span>' : '') + '<span class="name">' + data[i].name + '</span>' + (data[i].template ? ' : <span class="template">' + data[i].template  + '</span>': '');
+						html += ' | <a href="/d' + targetId + name + '/" target="_blank">Delete</a> | <a href="/m' + targetId + name + '/" target="_blank">Modify</a> | <a href="/e' + targetId + name + '/" target="_blank">Edit</a> | <a href="' + targetId + name + '/" target="_blank">View</a><div class="children"></div></div>';
 					}
 				} else {
 					html = '<span class="message">no children found</span>';
