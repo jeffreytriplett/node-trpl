@@ -1,7 +1,0 @@
-<div class="row nav">
-    {nav|
-        {%1|
-            <a href="{path}" class="{$#=1|full}{$#=2|half}{$#=3|third}{$#=4|fourth}{$#>4|{$#<7|sixth}}{$#>6|{$#<9|eighth}}">{label}</a>
-        }
-    }
-</div>

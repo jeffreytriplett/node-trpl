@@ -1,0 +1,85 @@
+body { margin: 0; font-family: 'Times New Roman'; }
+textarea { font-family: monospace; font-size: 13px; }
+
+#overlay { background: rgba(255, 255, 255, 0.8); position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 3; }
+#login-container { position: absolute; width: 280px; height: 52px; border: 2px solid #000; background: #fff; left: 50%; top: 50%; margin: -50px 0 0 -160px; padding: 24px 20px; }
+#login-container input[type=text], #login-container input[type=password] { margin-left: 6px; width: 120px; }
+#login-container input[type=submit] { position: absolute; top: 34px; right: 18px; text-decoration: none; font-family: Arial; color: #000; display: inline-block; background: #fff; border: 1px solid #000; padding: 4px 12px; font-size: 16px; cursor: pointer; }
+#login-container span.error { color: #f00; }
+
+#structure { z-index: 2; background: #fff; padding: 2px 12px; display: inline-block; border-right: 1px solid #000; position: absolute; top: 0; bottom: 0; overflow-x: hidden; overflow-y: auto; white-space: nowrap; }
+#structure .children { margin-top: 4px; display: none; }
+#structure > div, #structure .children > div { position: relative; margin: 6px 0; font-size: 20px; padding-left: 28px; }
+#structure .expanded + .children { display: block; }
+#structure .options-expanded + .children { display: block; }
+#structure .children > div.message { padding-left: 0; }
+#structure .options > div { font-size: 18px; margin: 4px 0; }
+#structure .fetch, #structure .expanded, #structure .collapsed, #structure .options-expanded, #structure .options-collapsed { position: absolute; left: 0; top: 4px; display: inline-block; line-height: 16px; margin-right: 12px; border: 1px solid #000; padding: 2px; text-align: center; width: 15px; height: 15px; font-size: 16px; font-weight: bold; cursor: pointer }
+#structure .expanded { padding: 0 2px 4px 2px; font-size: 20px; }
+#structure .options-expanded, #structure .options-collapsed { font-weight: normal; font-size: 16px; }
+#structure .options-expanded { padding: 1px 2px 3px 2px; }
+#structure .label, #structure .name, #structure .template { cursor: pointer; font-size: 24px; position: relative; top: 2px; margin-right: 4px; }
+#structure .template { color: #777; margin-left: 4px; }
+
+#workspace { position: absolute; top: 0; right: 0; bottom: 0; left: 200px; }
+#banner { height: 33px; border-bottom: 1px solid #000; position: relative; }
+#tabs { position: absolute; left: 0; bottom: 0; padding: 0 2px; white-space: nowrap; }
+#tabs > span { vertical-align: bottom; display: inline-block; overflow: hidden; position: relative; max-width: 552px; cursor: pointer; border: 1px solid #000; border-bottom: none; font-size: 20px; padding: 3px 36px 3px 12px; margin: 0 2px; line-height: 22px; background: #ccc; }
+#tabs > span.active { padding-bottom: 4px; background: #fff; top: 1px; }
+#tabs .close { background: #bbb; border-color: #aaa; color: #888; font-family: Arial; font-size: 12px; font-weight: bold; margin-left: 8px; display: inline-block; width: 20px; height: 18px; line-height: 20px; text-align: center; border-width: 1px; border-style: solid; position: absolute; top: 4px; right: 5px; }
+#tabs .close:hover { background: #ddd; border-color: #aaa; color: #999; }
+#tabs > span.active .close { background: #ddd; border-color: #aaa; color: #999; }
+#tabs > span.active .close:hover { background: #bbb; border-color: #aaa; color: #888; }
+#buttons { position: absolute; right: 0; }
+#buttons input, #view { text-decoration: none; font-family: Arial; color: #000; display: inline-block; background: #fff; border: 1px solid #000; padding: 4px 12px; font-size: 16px; cursor: pointer; }
+#sheets { position: absolute; top: 34px; right: 0; bottom: 0; left: 0; overflow: auto; }
+#sheets > div { display: none; }
+#sheets > div.active { display: block; }
+
+#workspace .edit > div { padding: 2px 12px; }
+#workspace .edit div > div { margin-left: 40px; }
+#workspace .edit > div > div { margin-left: 0; }
+#workspace .edit span { font-size: 36px; }
+#workspace .edit div > div span { font-size: 24px; }
+#workspace .edit div > .object > span, #workspace .edit div > .array > span { font-size: 24px; }
+#workspace .edit > div > .object > span, #workspace .edit > div > .array > span { display: block; margin: 12px 0; font-size: 32px; }
+#workspace .edit div:first-child > textarea { display: none; }
+#workspace .edit textarea { vertical-align: top; resize: none; margin: 2px 0 0 16px; width: 720px; height: 16px; }
+#workspace .edit textarea.smallest { width: 240px; }
+#workspace .edit textarea.larger, #workspace .edit textarea.largest { margin-bottom: 4px; }
+#workspace .edit textarea.larger { height: 48px; }
+#workspace .edit textarea.largest { height: 144px; }
+#workspace .edit .array { margin-bottom: 8px; }
+#workspace .edit .array > .string > textarea { margin-left: 32px; }
+#workspace .edit .array > div + div { margin-top: 12px; }
+#workspace .edit .object > div + div { margin-top: 12px; }
+#workspace .edit .array > div > span, #workspace .edit .array > span, #workspace .edit .object > span { font-weight: bold; }
+#workspace .edit .array > span, #workspace .edit .object > span { display: block; margin-bottom: 16px; }
+#workspace .edit .array + .array > span, #workspace .edit .array + .object > span, #workspace .edit .object + .array > span, #workspace .edit .object + .object > span { margin-top: 16px; }
+#workspace .edit .array > .object > span { margin-top: 0; }
+#workspace .edit .array > div > span { cursor: pointer; width: 32px; position: absolute; font-size: 32px; margin: 0; line-height: 24px; color: #888; }
+#workspace .edit .array > div > div { margin-left: 40px; }
+#workspace .edit .array > div:nth-child(2) { display: none; }
+#workspace .edit .array > .above > span + span, #workspace .edit .array > .below > span + span { cursor: pointer; position: static; font-size: 18px; font-weight: normal; border-width: 1px; border-style: solid; padding: 2px 8px; }
+#workspace .edit .array > .above > span.add, #workspace .edit .array > .below > span.add { border-color: #080; background: #cfc; color: #282; }
+#workspace .edit .array > .above > span.remove, #workspace .edit .array > .below > span.remove { margin-left: 4px; border-color: #800; background: #fcc; color: #822; }
+#workspace .edit .array > .above > span.clear, #workspace .edit .array > .below > span.clear { margin-left: 4px; border-color: #880; background: #ffc; color: #882; }
+#workspace .edit .array > .above > .string, #workspace .edit .array > .above > .object, #workspace .edit .array > .above > .array, #workspace .edit .array > .below > .string, #workspace .edit .array > .below > .object, #workspace .edit .array > .below > .array { display: none; }
+#workspace .edit .above, #workspace .edit .below { display: inline-block; position: relative; white-space: nowrap; }
+#workspace .edit .above { padding-top: 10px; }
+#workspace .edit .below { padding-bottom: 10px; }
+#workspace .edit .array > .above > span:first-child, #workspace .edit .array > .below > span:first-child { width: auto; height: 4px; border: 1px solid #008; background: #ccf; left: 0; right: 0; }
+#workspace .edit .array > .above > span:first-child { top: -1px; }
+#workspace .edit .array > .below > span:first-child { top: 29px; }
+#workspace .edit .array > .above div, #workspace .edit .array > .below div { display: none; }
+
+#workspace .modify textarea { margin: 0; position: absolute; top: 0; right: 0; bottom: 0; left: 0; border: none; resize: none; }
+#workspace .modify textarea:focus { border: none; outline: none; }
+#workspace .modify > div > div { padding: 12px; }
+#workspace .modify span { font-size: 24px; }
+#workspace .modify .templates { margin-top: 12px; }
+#workspace .modify .templates span { cursor: pointer; display: inline-block; padding: 60px; margin: 0 12px 12px 0; border: 1px solid #000; }
+#workspace .modify .templates span.current { cursor: default; background: #ccc; }
+#workspace .modify iframe { overflow: hidden; overflow-x: hidden; overflow-y: hidden; height: 100%; width: 100%; position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; }
+#workspace .modify input[type=file] { margin: 24px; }
+#workspace .modify form + img { margin-left: 24px; }

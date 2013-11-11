@@ -1,6 +1,0 @@
-<div class="row nav">
-    <span class="sixth">TRPL \{2013\}</span>
-    {about;contact|
-        <a href="{path}" class="sixth right">{label}</a>
-    }
-</div>
