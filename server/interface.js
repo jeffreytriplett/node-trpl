@@ -1,36 +1,104 @@
-var xmlhttp = new XMLHttpRequest();
-var overlay = null;
-var loginContainer = null;
-var structure = null;
-var workspace = null;
-var tabs = null;
-var sheets = null;
-var view = null;
-var username = null;
-var session = null;
-var key = null;
-var structureMinWidth = 200;
-var structureMaxWidth = 400;
+var overlay = 
+	loginContainer = 
+	structure = 
+	workspace = 
+	tabs = 
+	sheets = 
+	view = 
+	username = 
+	session = 
+	key = 
+	structureAnimationTimeout = null,
+	xmlhttp = new XMLHttpRequest(),
+	structureMinWidth = 200,
+	structureMaxWidth = 400,
+	structureTypes = {
+		'templates': 'template',
+		'components': 'component',
+		'images': 'image',
+		'files': 'file',
+		'css': 'style sheet',
+		'js': 'script'
+	},
+	animateStructureExpanding = function(width) {
+		structureAnimationTimeout = setTimeout(function() { animateStructureExpanding(width + 20); }, 16);
+		structure.style.width = (width - 25) + 'px';
+		workspace.style.left = width + 'px';
+	},
+	animateStructureCollapsing = function(width) {
+		structureAnimationTimeout = setTimeout(function() { animateStructureCollapsing(width - 20); }, 16);
+		structure.style.width = (width - 25) + 'px';
+		workspace.style.left = width + 'px';
+	};
 
-var structureTypes = {
-	'templates': 'template',
-	'components': 'component',
-	'images': 'image',
-	'files': 'file',
-	'css': 'style sheet',
-	'js': 'script'
+var q = {
+	remove: function(element) {
+		var parent = element.parentElement;
+		parent.removeChild(element);
+		return parent;
+	},
+	insertBefore: function(newElement, existingElement) {
+		existingElement.parentElement.insertBefore(newElement, existingElement);
+	}
 };
 
-var structureAnimationTimeout = null;
-var animateStructureExpanding = function(width) {
-	structureAnimationTimeout = setTimeout(function() { animateStructureExpanding(width + 20); }, 16);
-	structure.style.width = (width - 25) + 'px';
-	workspace.style.left = width + 'px';
+var liftId = function(element) {
+	var id = element.id;
+	element.id = '';
+	return id;
 };
-var animateStructureCollapsing = function(width) {
-	structureAnimationTimeout = setTimeout(function() { animateStructureCollapsing(width - 20); }, 16);
-	structure.style.width = (width - 25) + 'px';
-	workspace.style.left = width + 'px';
+var liftValue = function(input) {
+	var value = input.value;
+	input.value = '';
+	return value;
+};
+var setStructureInput = function(element, type, extension) {
+	if (element && element.className === 'message') {
+		var input = element.getElementsByTagName('input')[0];
+		var id = liftId(element);
+		var html = '<span class="' + (type === 'folder' ? 'label' : 'name') + '">' + (input ? liftValue(input) : 'Home Page');
+		if (type === 'file') {
+			html += extension + '</span><span class="options-collapsed">&or;</span>' +
+				'<div class="children"><div class="message"><a href="#">delete</a> this ' + (id.match(/^images\//g) ? 'image' : 'file') + '</div></div>'
+		} else {
+			html += '</span>' + (extension ? ' : <span class="template">' + extension + '</span>' : '') + '<span class="fetch">+</span>';
+		}
+		if (type === 'homepage') {
+			element.className = '';
+			element.innerHTML = html;
+		} else {
+			var newElement = document.createElement('div');
+			if (extension && type === 'file') {
+				newElement.id = id.substring(0, id.length - 1) + extension;
+			} else {
+				newElement.id = id;
+			}
+			newElement.innerHTML = html;
+			q.insertBefore(newElement, element);
+			updateFolderState(element.parentElement.parentElement);
+		}
+	}
+};
+var updateFolderState = function(folder) {
+	if (folder) {
+		var container = folder.getElementsByClassName('children')[0];
+		var deleteButton = container.getElementsByClassName('delete-message')[0];
+		var children = container.children;
+		var allMessages = true;
+		for (var i = 0; i < children.length; i++) {
+			if (children[i].className !== 'message') {
+				allMessages = false;
+			}
+		}
+		if (allMessages && !deleteButton && (folder.parentElement !== structure || !folder.id)) {
+			deleteButton = document.createElement('div');
+			deleteButton.className = 'delete-message';
+			deleteButton.innerHTML = 'no children found &nbsp;|&nbsp; <a href="#">delete</a> this ' + (structureTypes[(folder.id || '').split('/')[0]] || 'page') + '</div>';
+			q.insertBefore(deleteButton, children[0]);
+		} else if (!allMessages && deleteButton) {
+			q.remove(deleteButton);
+		}
+	}
 };
 
 window.onload = function() {
@@ -76,10 +144,12 @@ window.onload = function() {
 	};
 	structure.onclick = function(event) {
 		var target = event.target;
-		var parent = event.target.parentElement;
 		if (target !== structure) {
 			if (target.nodeName.toLowerCase() !== 'a') {
-				if (target.className === 'fetch') {
+				var action = target.className;
+				var parent = target.parentElement;
+				var category = parent.id.match(/^(images|files)\//g) ? 'imageOrFile' : parent.id.match(/^(css|js)\//g) ? 'cssOrJs' : 'other';
+				if (action === 'fetch') {
 					get('/o/' + parent.id, function(data) {
 						target.className = 'expanded';
 						target.innerHTML = '-';
@@ -91,140 +161,128 @@ window.onload = function() {
 								html += '<div id="' + parent.id + data.folders[i].name + '/"><span class="' + (parent.id.match(/(images|files)/g) ? 'label' : 'name') + '">' + data.folders[i].name + '</span>' + 
 									(data.folders[i].template !== '' ? ' : <span class="template">' + data.folders[i].template  + '</span>' : '') + '<span class="fetch">+</span></div>';
 							}
-							if (parent.id.match(/^(images|files)\//g)) {
+							if (category === 'imageOrFile') {
 								html += '<div class="message"><input type="text" /> <a href="#">create</a> new folder</div>';
 							}
 							for (var i = 0; i < data.files.length; i++) {
 								html += '<div id="' + parent.id + data.files[i].name + '"><span class="name">' + data.files[i].name + '</span>' + 
-									'<span class="options-collapsed">&or;</span><div class="children"><div class="message"><a href="#">delete</a> this ' + type + '</div></div></div>';
+									'<span class="options-collapsed">&or;</span><div class="children"><div class="delete-message"><a href="#">delete</a> this ' + type + '</div></div></div>';
 							}
 						} else {
 							if (parent.parentElement !== structure || parent.getElementsByClassName('name').length > 0) {
-								html = '<div class="message">no children found &nbsp;|&nbsp; <a href="#">delete</a> this ' + type + '</div>';
+								html = '<div class="delete-message">no children found &nbsp;|&nbsp; <a href="#">delete</a> this ' + type + '</div>';
 							}
-							if (parent.id.match(/^(images|files)\//g)) {
+							if (category === 'imageOrFile') {
 								html += '<div class="message"><input type="text" /> <a href="#">create</a> new folder</div>';
 							}
 						}
-						if (parent.id.match(/^(images|files)\//g)) {
+						if (category === 'imageOrFile') {
 							html += '<div class="message"><input type="text" /> <a href="#">upload</a> new ' + type + '</div>';
 						} else {
 							html += '<div class="message"><input type="text" /> <a href="#">create</a> new ' + type + '</div>';
 						}
 						parent.innerHTML += '<div class="children">' + html + '</div>';
 					});
-				} else if (target.className === 'expanded') {
+				} else if (action === 'expanded') {
 					target.innerHTML = '+';
 					target.className = 'collapsed';
-				} else if (target.className === 'collapsed') {
+				} else if (action === 'collapsed') {
 					target.innerHTML = '-';
 					target.className = 'expanded';
-				} else if (target.className === 'options-expanded') {
+				} else if (action === 'options-expanded') {
 					target.innerHTML = '&or;';
 					target.className = 'options-collapsed';
-				} else if (target.className === 'options-collapsed') {
+				} else if (action === 'options-collapsed') {
 					target.innerHTML = '&and;';
 					target.className = 'options-expanded';
-				} else if (target.className === 'name') {
-					if (parent.id.match(/^(images|files)\//g)) {
+				} else if (action === 'name') {
+					if (category === 'imageOrFile') {
 						activateTabAndSheet('modify', target.innerHTML, '/u/' + parent.id.replace(/\.[a-zA-Z0-9]+$/g, '/'), function(sheet) {
 							sheet.innerHTML = '<iframe frameborder="0" width="100%" height="100%" src="' + insertSession('/m/' + parent.id) + '"></iframe>';
 						});
-					} else if (parent.id.match(/^(css|js)\//g)) {
+					} else if (category === 'cssOrJs') {
 						get('/m/' + parent.id, function(data) {
 							activateTabAndSheet('modify', target.innerHTML, '/u/' + parent.id, function(sheet) {
-								sheet.innerHTML = data.html;
+								sheet.innerHTML = data;
 								activate(sheet);
 							});
 						});
 					} else {
 						get('/e/' + parent.id, function(data) {
 							activateTabAndSheet('edit', target.innerHTML, '/s/' + parent.id, function(sheet) {
-								sheet.innerHTML = data.html;
+								sheet.innerHTML = data;
 								activate(sheet);
 							});
 						});
 					}
-				} else if (target.className === 'template') {
-					get('/m/' + parent.id, function(data) {
-						activateTabAndSheet('modify', target.parentElement.getElementsByClassName('name')[0].innerHTML, '/u/' + parent.id, function(sheet) {
-							sheet.innerHTML = data.html;
+				} else if (action === 'template') {
+					get('/m/' + (parent.id || ''), function(data) {
+						activateTabAndSheet('modify', target.parentElement.getElementsByClassName('name')[0].innerHTML, '/u/' + (parent.id || ''), function(sheet) {
+							sheet.innerHTML = data;
 						});
 					});
-				} else if (target.className === 'label') {
+				} else if (action === 'label') {
 					target.nextSibling.click();
 				}
-			} else if (target.innerHTML === 'delete') {
-				parent = parent.parentElement.parentElement;
-				get('/d/' + parent.id, function(data) {
-					if (parent.id === '') {
-						parent.className ='message';
-						parent.innerHTML = 'no home page found &nbsp;|&nbsp; <a href="#" class="homepage">create</a> this page';
-					} else {
-						var container = parent.parentElement;
-						container.removeChild(parent);
-						if (container.children.length === 1 && container.parentElement.id !== 'templates/' && container.parentElement.id !== 'components/') {
-							container.innerHTML = '<div class="message">no children found &nbsp;|&nbsp; <a href="#">delete</a> this page</div>' + container.innerHTML;
+			} else {
+				var action = target.innerHTML;
+				target = target.parentElement;
+				var parent = target.parentElement.parentElement;
+				var category = parent.id.match(/^(images|files)\//g) ? 'imageOrFile' : parent.id.match(/^(css|js)\//g) ? 'cssOrJs' : 'other';
+				if (action === 'delete') {
+					get('/d/' + parent.id, function(data) {
+						if (parent.id === '') {
+							parent.className = 'message';
+							parent.innerHTML = '<a href="#">create</a> home page';
+						} else {
+							updateFolderState(q.remove(parent).parentElement);
 						}
-					}
-				});
-				return false;
-			} else if (target.innerHTML === 'create') {
-				if (target.className === 'rootpage') {
-					parent.id = '';
-					get('/m/', function(data) {
-						activateTabAndSheet('modify', 'Home Page', '/u/', function(sheet) {
-							sheet.innerHTML = data.html;
-						});
-						tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
 					});
 				} else {
-					var name = target.previousSibling.previousSibling.value;
-					if (name !== '' && name.indexOf(' ') === -1) {
-						parent = parent.parentElement.parentElement;
-						target = event.target.parentElement;
-						target.id = parent.id + name + (parent.id.match(/^(css|js)\//g) ? '.' + parent.id.split('/')[0] : '/');
-						if (parent.id.match(/^(images|files)\//g)) {
-							get('/u/' + target.id, function(data) {
-								target.className = '';
-								target.innerHTML = '<span class="label">' + name + '</span><span class="fetch">+</span>';
-								var newFile = document.createElement('div');
-								newFile.className = 'message';
-								newFile.innerHTML = '<input type="text" /> <a href="#">create</a> new folder';
-								if (target.parentElement.children[0].className === 'message') {
-									target.parentElement.removeChild(target.parentElementchildren[0]);
+					var input = target.getElementsByTagName('input')[0];
+					if (!input && action === 'create') {
+						get('/m/', function(data) {
+							activateTabAndSheet('modify', 'Home Page', '/u/', function(sheet) {
+								sheet.innerHTML = data;
+							});
+							tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
+						});
+					} else {
+						var name = input.value;
+						if (action === 'create') {
+							if (name !== '' && name.indexOf(' ') === -1) {
+								target.id = parent.id + name + '/';
+								if (category === 'imageOrFile') {
+									get('/u/' + target.id, function(data) {
+										setStructureInput(target, 'folder');
+									});
+								} else if (!parent.id.match(/^(templates|components)\/.+/g)) {
+									get('/m/' + target.id, function(data) {
+										activateTabAndSheet('modify', name, '/u/' + target.id, function(sheet) {
+											sheet.innerHTML = data;
+										});
+										tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
+									});
+								} else {
+									get('/e/' + target.id, function(data) {
+										activateTabAndSheet('edit', name, '/s/' + target.id, function(sheet) {
+											sheet.innerHTML = data;
+											activate(sheet);
+										});
+										tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
+									});
 								}
-								target.parentElement.insertBefore(newFile, target.parentElement.lastChild);
-							});
-						} else if (!parent.id.match(/^(templates|components)\/.+/g)) {
-							get('/m/' + target.id, function(data) {
+							}
+						} else if (action === 'upload') {
+							if (name !== '' && name.indexOf(' ') === -1) {
+								target.id = parent.id + name + '/';
 								activateTabAndSheet('modify', name, '/u/' + target.id, function(sheet) {
-									sheet.innerHTML = data.html;
+									sheet.innerHTML = '<iframe frameborder="0" width="100%" height="100%" src="' + insertSession('/m/' + target.id) + '"></iframe>';
 								});
 								tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
-							});
-						} else {
-							get('/e/' + target.id, function(data) {
-								activateTabAndSheet('edit', name, '/s/' + target.id, function(sheet) {
-									sheet.innerHTML = data.html;
-									activate(sheet);
-								});
-								tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
-							});
+							}
 						}
 					}
-				}
-				return false;
-			} else if (target.innerHTML === 'upload') {
-				var name = target.previousSibling.previousSibling.value;
-				if (name !== '' && name.indexOf(' ') === -1) {
-					parent = parent.parentElement.parentElement;
-					target = event.target.parentElement;
-					target.id = parent.id + name + '/';
-					activateTabAndSheet('modify', name, '/u/' + target.id, function(sheet) {
-						sheet.innerHTML = '<iframe frameborder="0" width="100%" height="100%" src="' + insertSession('/m/' + target.id) + '"></iframe>';
-					});
-					tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
 				}
 				return false;
 			}
@@ -267,7 +325,7 @@ window.onload = function() {
 				event.preventDefault();
 			}
 		}
-		if (event.which !== 9 && event.target.nodeName.toLowerCase() === 'textarea') {
+		if (event.which !== 9 && event.which !== 20 && event.target.nodeName.toLowerCase() === 'textarea') {
 			tabs.getElementsByClassName('active')[0].getElementsByClassName('close')[0].innerHTML = '!';
 		}
 	};
@@ -292,7 +350,6 @@ var handleSpecialKeys = function(event) {
         switch (String.fromCharCode(event.which).toLowerCase()) {
 	        case 's':
 	            event.preventDefault();
-	            console.log('save');
 	            saveActive();
 	            break;
 		}
@@ -302,12 +359,12 @@ var handleSpecialKeys = function(event) {
 var closeTab = function(tab) {
 	var newActive = tab.className === 'active' ? tab.previousSibling || tab.nextSibling : null;
 	var sheet = document.getElementById(tab.id.substring(1));
-	var file = tab.id.length === 4 ? structure.children[0] : document.getElementById(tab.id.substring(4));
+	var file = document.getElementById(tab.id.substring(4));
 	if (file && file.className === 'message') {
 		file.getElementsByTagName('input')[0].value = '';
 	}
-	tab.parentElement.removeChild(tab);
-	sheet.parentElement.removeChild(sheet);
+	q.remove(tab);
+	q.remove(sheet);
 	if (newActive) {
 		focusTab(newActive);
 	}
@@ -349,32 +406,13 @@ var activateTabAndSheet = function(type, label, id, loader) {
 };
 
 var submitUploadForm = function(form) {
-	console.log(form);
 	form.submit();
 	return false;
 };
 
 var uploadSuccess = function(path, extension) {
-	var file = document.getElementById(path.substring(1));
-	if (file) {
-		var newId = path.substring(1, path.length - 1) + extension;
-		var newFile = document.getElementById(newId);
-		var input = file.getElementsByTagName('input')[0];
-		var value = input.value;
-		input.value = '';
-		if (newFile) {
-			file.id = '';
-		} else {
-			file.id = newId;
-			newFile = document.createElement('div');
-			newFile.className = 'message';
-			newFile.innerHTML = file.innerHTML;
-			file.className = '';
-			file.innerHTML = '<span class="name">' + value + extension + '</span><span class="options-collapsed">&or;</span>' + 
-				'<div class="children"><div class="message"><a href="#">delete</a> this ' + (newId.match(/^images\//g) ? 'image' : 'file') + '</div></div>';
-			file.parentElement.appendChild(newFile);
-		}
-	}
+	document.getElementById('//u' + path).getElementsByClassName('close')[0].innerHTML = 'X';
+	setStructureInput(document.getElementById(path.substring(1)), 'file', extension);
 };
 
 var saveActive = function() {
@@ -384,44 +422,25 @@ var saveActive = function() {
 	if (tab) {
 		if (sheetId.indexOf('/s/') === 0) {
 			post(sheetId, buildData(sheet.children[0]), function(data) {
-				if (tab.id.indexOf('//s/templates/') !== -1 || tab.id.indexOf('//s/components/') !== -1) {
-					var file = tab.id.length === 4 ? structure.children[0] : document.getElementById(tab.id.substring(4));
-					if (file.className === 'message') {
-						file.className = '';
-						file.innerHTML = '<span class="name">' + file.getElementsByTagName('input')[0].value + '</span><span class="fetch">+</span>';
-						var newFile = document.createElement('div');
-						newFile.className = 'message';
-						newFile.innerHTML = '<input type="text" /> <a href="#">create</a> new page';
-						if (file.parentElement.children[0].className === 'message') {
-							file.parentElement.removeChild(file.parentElement.children[0]);
-						}
-						file.parentElement.appendChild(newFile);
-					}
-				}
+				setStructureInput(document.getElementById(tab.id.substring(4)), 'node', '');
 				tab.getElementsByClassName('close')[0].innerHTML = 'X';
 			});
 		} else if (sheetId.indexOf('/u/') === 0) {
 			var type = sheetId.substring(3).split('/')[0];
 			if (type.match(/^(templates|components|css|js)$/g)) {
-				post(sheetId, sheet.getElementsByTagName('textarea')[0].value, function(data) {
-					var file = tab.id.length === 4 ? structure.children[0] : document.getElementById(tab.id.substring(4));
-					if (file.className === 'message') {
-						file.className = '';
-						var fileParent = file.parentElement.parentElement;
-						file.innerHTML = '<span class="name">' + file.getElementsByTagName('input')[0].value + '</span>' + (fileParent.id.match(/^(templates\/|components\/)$/) ? ' : <span class="template">code</span>' : '') + 
-							(fileParent.id.match(/^(templates|components)\//) ? '<span class="fetch">+</span>' : '<span class="options-collapsed">&or;</span><div class="children"><div class="message"><a href="#">delete</a> this ' + structureTypes[fileParent.id.split('/')[0]] + '</div></div></div>');
-						if (tab.id !== '//u/templates/' || tab.id !== '//u/components/') {
-							var newFile = document.createElement('div');
-							newFile.className = 'message';
-							newFile.innerHTML = '<input type="text" /> <a href="#">create</a> new ' + structureTypes[tab.id.substring(4).split('/')[0]];
-							if (file.parentElement.children[0].className === 'message') {
-								file.parentElement.removeChild(file.parentElement.children[0]);
-							}
-							file.parentElement.appendChild(newFile);
-						}
-					}
-					tab.getElementsByClassName('close')[0].innerHTML = 'X';
-				});
+				var file = document.getElementById(tab.id.substring(4));
+				var parent = file.parentElement.parentElement;
+				if (type.match(/^(templates|components)$/g)) {
+					post(sheetId, sheet.getElementsByTagName('textarea')[0].value, function(data) {
+						setStructureInput(file, 'node', parent.id.match(/^(templates\/|components\/)$/) ? 'code' : '');
+						tab.getElementsByClassName('close')[0].innerHTML = 'X';
+					});
+				} else {
+					post(sheetId, sheet.getElementsByTagName('textarea')[0].value, function(data) {
+						setStructureInput(file, 'file', '.' + parent.id.split('/')[0]);
+						tab.getElementsByClassName('close')[0].innerHTML = 'X';
+					});
+				}
 			} else if (type.match(/^(images|files)$/g)) {
 				uploadFunctions[sheetId.substring(2)](insertSession(sheetId));
 			} else {
@@ -429,21 +448,11 @@ var saveActive = function() {
 				if (current.length > 0) {
 					var template = current[0].innerHTML;
 					post(sheetId, template, function(data) {
-						var file = tab.id.length === 4 ? structure.children[0] : document.getElementById(tab.id.substring(4));
-						if (file.className === 'message') {
-							file.className = '';
-							file.innerHTML = '<span class="name">' + (file.id === '' ? 'Home Page' : file.getElementsByTagName('input')[0].value) + '</span> : <span class="template"></span><span class="fetch">+</span>';
-							if (tab.id !== '//u/') {
-								var newFile = document.createElement('div');
-								newFile.className = 'message';
-								newFile.innerHTML = '<input type="text" /> <a href="#">create</a> new page';
-								if (file.parentElement.children.length === 2) {
-									file.parentElement.removeChild(file.parentElement.children[0]);
-								}
-								file.parentElement.appendChild(newFile);
-							}
+						if (tab.id.length === 4) {
+							setStructureInput(structure.children[0], 'homepage', template);
+						} else {
+							setStructureInput(document.getElementById(tab.id.substring(4)), 'node', template);
 						}
-						file.getElementsByClassName('template')[0].innerHTML = template;
 						tab.getElementsByClassName('close')[0].innerHTML = 'X';
 					});
 				}
@@ -466,69 +475,56 @@ var clearActive = function() {
 var authenticate = function() {
 	var username = document.getElementById('username');
 	var password = document.getElementById('password');
-	xmlhttp.onreadystatechange = function() {
-		if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
-			var data = xmlhttp.responseText !== '' ? JSON.parse(xmlhttp.responseText) : null;
-			if (data.id !== '') {
-				session = data.id;
-				overlay.style.display = 'none';
-				loginContainer.style.display = 'none';
-				username.value = '';
-				password.value = '';
-				loginContainer.children[0].className = '';
-				loginContainer.children[3].className = '';
-			} else {
-				loginContainer.children[0].className = 'error';
-				loginContainer.children[3].className = 'error';
-			}
-		}
-	}
+	setUpResponseHandler(function(data) {
+		session = data;
+		overlay.style.display = 'none';
+		loginContainer.style.display = 'none';
+		username.value = '';
+		password.value = '';
+		loginContainer.children[0].className = '';
+		loginContainer.children[3].className = '';
+	}, function(data) {
+		loginContainer.children[0].className = 'error';
+		loginContainer.children[3].className = 'error';
+	});
 	xmlhttp.open('POST', '/a/', true);
 	xmlhttp.send('{"username":"' + username.value + '","password":"' + password.value + '"}');
 };
 
 var insertSession = function(path) {
 	var prefix = path.match(/^\/([oesmud]\/)?([tc]\/)?/g)[0];
-	if (prefix !== '/') {
+	if (session === null || prefix !== '/') {
 		return prefix + session + path.substring(prefix.length - 1);
 	} else {
 		return path;
 	}
 };
 
-var get = function(path, success, failure) {
+var setUpResponseHandler = function(success, failure) {
 	xmlhttp.onreadystatechange = function() {
-		if (xmlhttp.readyState == 4) {
-			if (xmlhttp.status == 200 && success !== undefined) {
-				success(xmlhttp.responseText !== '' ? JSON.parse(xmlhttp.responseText) : null);
-			} else if (xmlhttp.status == 404) {
-				if (xmlhttp.responseText === 'session') {
-					showLogin();
-				} else if (failure !== undefined) {
-					failure(xmlhttp.responseText !== '' ? JSON.parse(xmlhttp.responseText) : null);
-				}
+		if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+			var json = JSON.parse(xmlhttp.responseText);
+			if (json.success === null) {
+				showLogin();
+			} else if (json.success && success !== undefined) {
+				success(json.data);
+			} else if (!json.success && failure !== undefined) {
+				failure(json.data);
 			}
 		}
 	}
+};
+
+var get = function(path, success, failure) {
+	setUpResponseHandler(success, failure);
 	xmlhttp.open('GET', insertSession(path), true);
 	xmlhttp.send();
 };
+
 var post = function(path, data, success, failure) {
-	xmlhttp.onreadystatechange = function() {
-		if (xmlhttp.readyState == 4) {
-			if (xmlhttp.status == 200 && success !== undefined) {
-				success(xmlhttp.responseText !== '' ? JSON.parse(xmlhttp.responseText) : null);
-			} else if (xmlhttp.status == 404) {
-				if (xmlhttp.responseText === 'session') {
-					showLogin();
-				} else if (failure !== undefined) {
-					failure(xmlhttp.responseText !== '' ? JSON.parse(xmlhttp.responseText) : null);
-				}
-			}
-		}
-	}
+	setUpResponseHandler(success, failure);
 	xmlhttp.open('POST', insertSession(path), true);
-	xmlhttp.send(typeof data === 'object' ? JSON.stringify(data) : data);
+	xmlhttp.send(typeof data === 'string' ? data : JSON.stringify(data));
 };
 
 var showLogin = function() {
@@ -612,7 +608,7 @@ var actions = {
 			if (parent.children.length > 4) {
 				parent.children[3].innerHTML = "Clear (" + (parent.children.length - 4) + ")";
 			} else {
-				parent.removeChild(parent.children[3]);
+				q.remove(parent.children[3]);
 			}
 		} else {
 			newNode = insert[parent.className](parent, nodes[1].innerHTML)[0];
@@ -641,7 +637,7 @@ var actions = {
 		var nodes = parent.children;
 		var count = nodes.length;
 		for (var i = 0; i < count - 3; i++) {
-			parent.removeChild(nodes[3]);
+			q.remove(nodes[3]);
 		}
 	}
 };
@@ -734,9 +730,9 @@ var activateArrays = function(element) {
 				var grandparent = parent.parentElement;
 				var controls = getChildByClassName(grandparent, "above", "below")[0];
 				if (controls.className === "above") {
-					grandparent.insertBefore(controls, parent.nextSibling);
+					q.insertBefore(controls, parent.nextSibling);
 				} else {
-					grandparent.insertBefore(controls, parent);
+					q.insertBefore(controls, parent);
 				}
 			}
 		};

@@ -195,7 +195,7 @@ var buildCodeForm = function(code) {
 	return '<textarea id="code" wrap="off">' + code + '</textarea>';
 };
 
-var buildUploadForm = function(path, found) {
+var buildUploadForm = function(path, updateStructure, showImage) {
 	var extensionlessPath = path.replace(/\.[a-zA-Z0-9]+$/g, '/');
 	var extension = path.match(/\.[a-zA-Z0-9]+$/g)
 	if (extension) {
@@ -203,8 +203,8 @@ var buildUploadForm = function(path, found) {
 	} else {
 		extension = '/';
 	}
-	return '<script> window.onkeydown = function(event) { parent.handleSpecialKeys(event); }; ' + (found ? 'parent.uploadSuccess(\'' + extensionlessPath + '\', \'' + extension + '\'); ' : '') + 'if (!parent.uploadFunctions) { parent.uploadFunctions = {}; } parent.uploadFunctions[\'' + extensionlessPath + '\'] = function(action) { ' + 
-		' var form = document.getElementsByTagName(\'form\')[0]; form.action = action; form.submit(); };</script><form method="post" enctype="multipart/form-data"><input type="file" name="image"></form><img src="' + (found ? path : '') + '" />';
+	return '<script> window.onkeydown = function(event) { parent.handleSpecialKeys(event); }; ' + (updateStructure ? 'parent.uploadSuccess(\'' + extensionlessPath + '\', \'' + extension + '\'); ' : '') + 'if (!parent.uploadFunctions) { parent.uploadFunctions = {}; } parent.uploadFunctions[\'' + extensionlessPath + '\'] = function(action) { ' + 
+		' var form = document.getElementsByTagName(\'form\')[0]; form.action = action; form.submit(); };</script><form method="post" enctype="multipart/form-data"><input type="file" name="image"></form>' + (showImage ? '<img src="' + path + '" />' : '');
 };
 
 var buildLoginPage = function() {
@@ -231,7 +231,7 @@ var buildInterface = function(rootpage) {
 	if (rootpage) {
 		result += '<div id=""><span class="name">' + rootpage.name + '</span> : <span class="template">' + rootpage.template  + '</span><span class="fetch">+</span></div>'
 	} else {
-		result += '<div class="message"><a href="#" class="rootpage">create</a> home page</div>';
+		result += '<div class="message"><a href="#">create</a> home page</div>';
 	}
 	result += '<div id="images/"><span class="label">Images</span><span class="fetch">+</span></div>';
 	result += '<div id="files/"><span class="label">Files</span><span class="fetch">+</span></div>';
@@ -273,7 +273,7 @@ var processTemplate = function(rawTemplate, root, path, mode, success, failure) 
 			}
 			if (mode === 'e') {
 				success(trpla.process(root === '/pages' ? 'Page Data' : 'Component Data', template, data));
-			} else {
+			} else if (mode === 'v') {
 				template = trpl.process(template, data);
 				txtMap = {};
 				keys = removeDuplicates(batchTrim(template.match(/\[[a-zA-Z0-9]*\|[^\]]*\]/g), 1, 1));
@@ -287,12 +287,10 @@ var processTemplate = function(rawTemplate, root, path, mode, success, failure) 
 							});
 						} catch (e) {}
 					}
-					if (mode === 'v') {
-						success(template);
-					} else {
-						failure('Invalid Mode');
-					}
+					success(template);
 				});
+			} else {
+				failure('Invalid Mode');
 			}
 		});
 	});
@@ -352,7 +350,7 @@ var saveFile = function(path, body, callback) {
 	text = text.substring(type.length).replace(/^[\r\n]+/g, '');
 	var file = text.substring(0, text.indexOf(boundary) - 2);
 	var extension = disposition.match(/;\s*filename="[^"]*\.[a-zA-Z0-9]+"/g);
-	if (extension && file !== '') {
+	if (extension) {
 		extension = extension[0].substring(extension[0].lastIndexOf('.'), extension[0].length - 1);
 		fs.writeFile(path.substring(0, path.length - 1) + extension, file, 'binary', function(err) {
 			callback(err, extension);
@@ -360,6 +358,11 @@ var saveFile = function(path, body, callback) {
 	} else {
 		callback('invalid request');
 	}
+};
+
+var formatResponse = function(condition, data) {
+	var data = typeof data === 'function' ? data() : data;
+	return '{"success":' + condition + (data !== undefined ? ',"data":' + (typeof data === 'string' ? '"' + data + '"' : JSON.stringify(data)) : '') + '}';
 };
 
 http.createServer(function(req, res) {
@@ -390,266 +393,206 @@ http.createServer(function(req, res) {
 				root = '/' + path.substring(1).split('/')[0];
 				path = path.substring(root.length);
 			}
-			if (mode === "a") {
-				var data = '';
-		        req.on('data', function (segment) {
-		            data += segment;
-		        });
-		        req.on('end', function () {
-		        	data = safeParse(data);
-					if (data !== undefined && data.password === users[data.username]) {
-						var id = getUniqueSessionId();
-						sessions[id] = new Date().getTime() + 3600000;
-						res.writeHead(200, {'Content-Type': 'text/html'});
-						res.end('{"id":"' + id + '"}');
-					} else {
-						res.writeHead(200, {'Content-Type': 'text/html'});
-						res.end('{"id":""}');
-					}
-				});
-			} else if (mode === "i") {
-				fs.readFile(siteroot + root + path + 'code.txt', function(err, file) {
-					var rootpage = null;
-					if (file) {
-						rootpage = {'name': path === '/' ? 'Home Page' : path.substring(path.substring(0, path.length - 1).lastIndexOf('/') + 1, path.length - 1), 'template': file}
-					}
+			if (mode === 'v') {
+				processPage(root, path, mode, function(html) {
 					res.writeHead(200, {'Content-Type': 'text/html'});
-					res.end(buildInterface(rootpage));
+					res.end(html);
+				}, function(message) {
+					res.writeHead(404, {'Content-Type': 'text/plain'});
+					res.end('Page Not Found');
 				});
-			} else if (permission) {
-				if (mode === "o") {
-					fs.readdir(siteroot + root + path, function(err, files) {
-						var data = {};
-						var validFolders = [];
-						var validFiles = [];
-						if (files) {
-							if (root === '/pages') {
-								var validPaths = [];
-								for (var i = 0; i < files.length; i++) {
-									if (!files[i].match(/\.[a-zA-Z0-9]+$/g)) {
-										validFolders.push(files[i]);
-										validPaths.push(path + files[i] + '/');
-									}
-								}
-								readMultiple(validPaths, readProps, function(i, file) {
-									validFolders[i] = {'name': validFolders[i], 'template': file};
-								}, function() {
-									data.folders = validFolders;
-									data.files = validFiles;
-									res.writeHead(200, {'Content-Type': 'text/plain'});
-									res.end(JSON.stringify(data));
-								});
-							} else {
-								if (root.match(/\/(components|templates|images|files)$/g)) {
-									for (var i = 0; i < files.length; i++) {
-										if (!files[i].match(/\.[a-zA-Z0-9]+$/g)) {
-											validFolders.push({'name': files[i], 'template': ((root + path).match(/\/(templates|components)\//g) ? 'code' : '')})
-										}
-									}
-								}
-								if (!root.match(/\/(components|templates)$/g)) {
-									for (var i = 0; i < files.length; i++) {
-										if (files[i].match(/\.[a-zA-Z0-9]+$/g) && !files[i].match(/\.db$/g)) {
-											validFiles.push({'name': files[i], 'template': ''});
-										}
-									}
-								}
-								data.folders = validFolders;
-								data.files = validFiles;
-								res.writeHead(200, {'Content-Type': 'text/plain'});
-								res.end(JSON.stringify(data));
-							}
-						} else {
-							res.writeHead(200, {'Content-Type': 'text/plain'});
-							res.end('{}');
-						}
-					});
-				} else if (mode === "s" || mode === "u") {
+			} else if (mode === 'i') {
+				fs.readFile(siteroot + root + path + 'code.txt', function(err, file) {
+					res.writeHead(200, {'Content-Type': 'text/html'});
+					res.end(buildInterface(file ? {'name': path === '/' ? 'Home Page' : path.substring(path.substring(0, path.length - 1).lastIndexOf('/') + 1, path.length - 1), 'template': file} : null));
+				});
+			} else {
+				res.writeHead(200, {'Content-Type': 'application/json'});
+				if (mode === "a") {
 					var data = '';
-					req.setEncoding('binary');
 			        req.on('data', function (segment) {
 			            data += segment;
 			        });
 			        req.on('end', function () {
-			        	if (mode === "s") {
-			        		conditionalIntermediary(root !== '/pages', function(operation) {
-								fs.readdir(siteroot + root + path, function(err, files) {
-									conditionalIntermediary(err, function(operation2) {
-										fs.mkdir(siteroot + root + path, function(err) {
-											operation2();
-										});
-									}, operation);
-								});
-			        		}, function() {
-								fs.writeFile(siteroot + root + path + 'data.json', data, function(err) {
-									if (!err) {
-										res.writeHead(200, {'Content-Type': 'text/plain'});
-										res.end('{"status":"Save Successful"}');
-									} else {
-										res.writeHead(404, {'Content-Type': 'text/plain'});
-										res.end('{"status":"Unable to Save"}');
+			        	data = safeParse(data);
+			        	res.end(formatResponse(data !== undefined && data.password === users[data.username], function() {
+							var id = getUniqueSessionId();
+							sessions[id] = new Date().getTime() + 3600000;
+							return id;
+			        	}));
+					});
+				} else if (permission) {
+					if (mode === "o") {
+						fs.readdir(siteroot + root + path, function(err, files) {
+							var data = {};
+							var validFolders = [];
+							var validFiles = [];
+							if (!err) {
+								if (root === '/pages') {
+									var validPaths = [];
+									for (var i = 0; i < files.length; i++) {
+										if (!files[i].match(/\.[a-zA-Z0-9]+$/g)) {
+											validFolders.push(files[i]);
+											validPaths.push(path + files[i] + '/');
+										}
 									}
-								});
-							});
-						} else if (mode === "u") {
-							if (root.match(/\/(pages|templates|components)$/g)) {
-								fs.readdir(siteroot + root + path, function(err, files) {
-									conditionalIntermediary(err !== null, function(operation2) {
-										fs.mkdir(siteroot + root + path, function(err) {
-											operation2();
-										});
+									readMultiple(validPaths, readProps, function(i, file) {
+										validFolders[i] = {'name': validFolders[i], 'template': file};
 									}, function() {
-										fs.writeFile(siteroot + root + path + 'code.txt', data, function(err) {
-											if (!err) {
-												res.writeHead(200, {'Content-Type': 'text/plain'});
-												res.end('{"status":"Update Successful"}');
-											} else {
-												res.writeHead(404, {'Content-Type': 'text/plain'});
-												res.end('{"status":"Unable to Update"}');
-											}
-										});
-									});
-								});
-							} else if (root.match(/\/(css|js)$/g)) {
-								fs.writeFile(siteroot + root + path.substring(0, path.length - 1) + '.' + root.substring(1), data, function(err) {
-									if (!err) {
-										res.writeHead(200, {'Content-Type': 'text/plain'});
-										res.end('{"status":"Update Successful"}');
-									} else {
-										res.writeHead(404, {'Content-Type': 'text/plain'});
-										res.end('{"status":"Unable to Update"}');
-									}
-								});
-							} else if (root.match(/\/(images|files)$/g)) {
-								if (data) {
-									saveFile(siteroot + root + path, data, function(err, extension) {
-										if (!err) {
-											res.writeHead(200, {'Content-Type': 'text/html'});
-											res.end(buildUploadForm(root + path.substring(0, path.length - 1) + extension, true));
-										} else {
-											res.writeHead(404, {'Content-Type': 'text/plain'});
-											res.end('Unable to Update');
-										}
-									});
-								} else if (root.match(/\/(images|files)$/g)) {
-									fs.mkdir(siteroot + root + path, function(err) {
-										if (!err) {
-											res.writeHead(200, {'Content-Type': 'text/plain'});
-											res.end('{"status":"Update Successful"}');
-										} else {
-											res.writeHead(404, {'Content-Type': 'text/plain'});
-											res.end('{"status":"Unable to Update"}');
-										}
-									});
-								}
-							}
-						} else {
-							res.writeHead(404, {'Content-Type': 'text/plain'});
-							res.end('No Data Recieved');
-						}
-			        });
-				} else if (mode === 'm') {
-					if (root === '/pages') {
-						fs.readdir(siteroot + '/templates/', function(err, files) {
-							var template = null;
-							fs.readFile(siteroot + root + path + 'code.txt', function(err, file) {
-								res.writeHead(200, {'Content-Type': 'text/html'});
-								res.end('{"html":"' + prepareForJson(buildPropsForm(files, file ? file.toString() : undefined)) + '"}');
-							});
-						});
-					} else if (root.match(/\/(css|js)$/g)) {
-						fs.readFile(siteroot + root + path, function(err, file) {
-							res.writeHead(200, {'Content-Type': 'text/html'});
-							res.end('{"html":"' + prepareForJson(buildCodeForm(file ? file.toString() : '')) + '"}');
-						});
-					} else if (root.match(/\/(images|files)$/g)) {
-						conditionalIntermediary(path.match(/\.[a-zA-Z0-9]+$/g), function(operation) {
-							fs.readFile(siteroot + root + path, function(err, file) {
-								operation(!err ? true : false);
-							});
-						}, function(exists) {
-							res.writeHead(200, {'Content-Type': 'text/html'});
-							res.end(buildUploadForm(root + path, exists ? true : false));
-						});
-					} else {
-						fs.readFile(siteroot + root + path + 'code.txt', function(err, file) {
-							res.writeHead(200, {'Content-Type': 'text/html'});
-							res.end('{"html":"' + prepareForJson(buildCodeForm(file ? file.toString() : '')) + '"}');
-						});
-					}
-				} else if (mode === 'd') {
-					if (root.match(/\/(css|js|images|files)$/g)) {
-						fs.stat(siteroot + root + path, function(err, stat) {
-							if (stat) {
-								if (stat.isDirectory()) {
-									fs.unlink(siteroot + root + path + 'Thumbs.db', function(err) {
-										fs.rmdir(siteroot + root + path, function(err) {
-											if (!err) {
-												res.writeHead(200, {'Content-Type': 'text/plain'});
-												res.end('{"success":"true"}');
-											} else {
-												res.writeHead(404, {'Content-Type': 'text/plain'});
-												res.end('{"success":"false"}');
-											}
-										});
-									});
-								} else if (stat.isFile()){
-									fs.unlink(siteroot + root + path, function(err) {
-										if (!err) {
-											res.writeHead(200, {'Content-Type': 'text/plain'});
-											res.end('{"success":"true"}');
-										} else {
-											res.writeHead(404, {'Content-Type': 'text/plain'});
-											res.end('{"success":"false"}');
-										}
+										data.folders = validFolders;
+										data.files = validFiles;
+										res.end(formatResponse(true, data));
 									});
 								} else {
-									res.writeHead(404, {'Content-Type': 'text/plain'});
-									res.end('{"success":"false"}');
+									if (root.match(/\/(components|templates|images|files)$/g)) {
+										for (var i = 0; i < files.length; i++) {
+											if (!files[i].match(/\.[a-zA-Z0-9]+$/g)) {
+												validFolders.push({'name': files[i], 'template': ((root + path).match(/\/(templates|components)\//g) ? 'code' : '')})
+											}
+										}
+									}
+									if (!root.match(/\/(components|templates)$/g)) {
+										for (var i = 0; i < files.length; i++) {
+											if (files[i].match(/\.[a-zA-Z0-9]+$/g) && !files[i].match(/\.db$/g)) {
+												validFiles.push({'name': files[i], 'template': ''});
+											}
+										}
+									}
+									data.folders = validFolders;
+									data.files = validFiles;
+									res.end(formatResponse(true, data));
 								}
 							} else {
-								res.writeHead(404, {'Content-Type': 'text/plain'});
-								res.end('{"success":"false"}');
+								res.end(formatResponse(false));
 							}
 						});
-					} else {
-						fs.unlink(siteroot + root + path + 'data.json', function(err) {
-							fs.unlink(siteroot + root + path + 'code.txt', function(err2) {
-								if (path !== '/') {
-									fs.rmdir(siteroot + root + path, function(err3) {
-										if (!err3) {
-											res.writeHead(200, {'Content-Type': 'text/plain'});
-											res.end('{"success":"true"}');
+					} else if (mode === "s" || mode === "u") {
+						var data = '';
+						req.setEncoding('binary');
+				        req.on('data', function (segment) {
+				            data += segment;
+				        });
+				        req.on('end', function () {
+				        	if (mode === "s") {
+				        		conditionalIntermediary(root !== '/pages', function(operation) {
+									fs.readdir(siteroot + root + path, function(err, files) {
+										conditionalIntermediary(err, function(operation2) {
+											fs.mkdir(siteroot + root + path, function(err) {
+												operation2();
+											});
+										}, operation);
+									});
+				        		}, function() {
+									fs.writeFile(siteroot + root + path + 'data.json', data, function(err) {
+										res.end(formatResponse(!err));
+									});
+								});
+							} else if (mode === "u") {
+								if (root.match(/\/(pages|templates|components)$/g)) {
+									fs.readdir(siteroot + root + path, function(err, files) {
+										conditionalIntermediary(err !== null, function(operation2) {
+											fs.mkdir(siteroot + root + path, function(err) {
+												operation2();
+											});
+										}, function() {
+											fs.writeFile(siteroot + root + path + 'code.txt', data, function(err) {
+												res.end(formatResponse(!err));
+											});
+										});
+									});
+								} else if (root.match(/\/(css|js)$/g)) {
+									fs.writeFile(siteroot + root + path.substring(0, path.length - 1) + '.' + root.substring(1), data, function(err) {
+										res.end(formatResponse(!err));
+									});
+								} else if (root.match(/\/(images|files)$/g)) {
+									if (data) {
+										saveFile(siteroot + root + path, data, function(err, extension) {
+											res.writeHead(200, {'Content-Type': 'text/html'});
+											res.end(buildUploadForm(root + path.substring(0, path.length - 1) + extension, !err ? true : false, !err && root === '/images' ? true : false));
+										});
+									} else {
+										fs.mkdir(siteroot + root + path, function(err) {
+											res.end(formatResponse(!err));
+										});
+									}
+								}
+							}
+				        });
+					} else if (mode === 'm') {
+						if (root === '/pages') {
+							fs.readdir(siteroot + '/templates/', function(err, files) {
+								var template = null;
+								fs.readFile(siteroot + root + path + 'code.txt', function(err, file) {
+									res.end(formatResponse(true, prepareForJson(buildPropsForm(files, file ? file.toString() : undefined))));
+								});
+							});
+						} else if (root.match(/\/(css|js)$/g)) {
+							fs.readFile(siteroot + root + path, function(err, file) {
+								res.end(formatResponse(true, prepareForJson(buildCodeForm(file ? file.toString() : ''))));
+							});
+						} else if (root.match(/\/(images|files)$/g)) {
+							conditionalIntermediary(path.match(/\.[a-zA-Z0-9]+$/g), function(operation) {
+								fs.readFile(siteroot + root + path, function(err, file) {
+									operation(!err ? true : false);
+								});
+							}, function(exists) {
+								res.writeHead(200, {'Content-Type': 'text/html'});
+								res.end(buildUploadForm(root + path, false, exists && root === '/images' ? true : false));
+							});
+						} else {
+							fs.readFile(siteroot + root + path + 'code.txt', function(err, file) {
+								res.end(formatResponse(true, prepareForJson(buildCodeForm(file ? file.toString() : ''))));
+							});
+						}
+					} else if (mode === 'd') {
+						if (path !== '/' || root === '/pages') {
+							if (root.match(/\/(css|js|images|files)$/g)) {
+								fs.stat(siteroot + root + path, function(err, stat) {
+									if (stat) {
+										if (stat.isDirectory()) {
+											fs.unlink(siteroot + root + path + 'Thumbs.db', function(err) {
+												fs.rmdir(siteroot + root + path, function(err) {
+													res.end(formatResponse(!err));
+												});
+											});
+										} else if (stat.isFile()){
+											fs.unlink(siteroot + root + path, function(err) {
+												res.end(formatResponse(!err));
+											});
 										} else {
-											res.writeHead(404, {'Content-Type': 'text/plain'});
-											res.end('{"success":"false"}');
+											res.end(formatResponse(false));
+										}
+									} else {
+										res.end(formatResponse(false));
+									}
+								});
+							} else {
+								fs.unlink(siteroot + root + path + 'data.json', function(err) {
+									fs.unlink(siteroot + root + path + 'code.txt', function(err2) {
+										if (path !== '/') {
+											fs.rmdir(siteroot + root + path, function(err3) {
+												res.end(formatResponse(!err3));
+											});
+										} else {
+											res.end(formatResponse(true));
 										}
 									});
-								} else {
-									res.writeHead(200, {'Content-Type': 'text/plain'});
-									res.end('{"success":"true"}');
-								}
-							});
+								});
+							}
+						} else {
+							res.end(formatResponse(false));
+						}
+					} else if (mode === 'e') {
+						processPage(root, path, mode, function(html) {
+							res.end(formatResponse(true, prepareForJson(html)));
+						}, function(message) {
+							res.end(formatResponse(false));
 						});
 					}
 				} else {
-					processPage(root, path, mode, function(html) {
-						if (mode === 'e') {
-							res.writeHead(200, {'Content-Type': 'text/plain'});
-							res.end('{"html":"' + prepareForJson(html) + '"}');
-						} else {
-							res.writeHead(200, {'Content-Type': 'text/html'});
-							res.end(html);
-						}
-					}, function(message) {
-						res.writeHead(404, {'Content-Type': 'text/plain'});
-						res.end(message);
-					});
+					res.end(formatResponse(null));
 				}
-				} else {
-					res.writeHead(404, {'Content-Type': 'text/plain'});
-					res.end('session');
-				}
+			}
 		}
 	} else {
 		var root = siteroot;

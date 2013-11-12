@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Example Template</title>
+		<link rel="stylesheet" href="/css/example.css" />
+	</head>
+	<body>
+		<h2>Curly Brackets</h2>
+		<p>These are used to build the page with authored content.</p>
+		<p>If no pipe "|" character is found inside the brackets, it will use the text inside as the id for the input.</p>
+		<h4>Example: Text</h4>
+		<ul>
+			<li>{text}</li>
+		</ul>
+		<p>Curly brackets can be embedded if a pipe character is used.</p>
+		<h4>Example: Link</h4>
+		<ul>
+			<li>{link| <a href="{url}">{text}</a> }</li>
+		</ul>
+		<p>The identifier string to the left of the pipe character can contain special symbols used to process the data.  The '%num' identifier will break the array up into sets of 'num' number of elements and run the code for each set.</p>
+		<h4>Example: List</h4>
+		{list|
+			<ul>
+				{%1| <li>{}</li> }
+			</ul>
+		}
+		<hr>
+		<h2>Square Brackets</h2>
+		<p>These are used to add components to a page.</p>
+		<p>If a pipe is found inside the brackets, it will process the component code using its own data</p>
+		<p>If the text to the right of the pipe is empty, it will use the default json</p>
+		[example|]
+		<p>If the text to the right of the pipe is not empty, it will use that version of the json.  The version can be set up to be authorable.</p>
+		[example|{category}]
+		<p>If no pipe is found, the data that builds this component will be authored directly into the rest of the page data.</p>
+		[example]
+		<script src="/js/example.js"></script>
+	</body>
+</html>
