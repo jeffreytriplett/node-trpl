@@ -33,10 +33,10 @@ Sets up a node server that stores page data as json and uses trpl templates to p
 - Click the name of an existing image or file to view the uploaded image or choose a new image or file.
 - To delete and image or file, click the down arrow next to the name to expand the options and choose 'delete'.
 
-###Style Sheets and JavaScript
+####Style Sheets and JavaScript
 - Work like images and files except doesn't allow you to create folders and coding is done in the browser instead of uploading a local file.
 
-####Additional Information
+##Additional Information
 
 Click the view button in the upper right to view the page on the site.  The page will open in a new tab.
 
