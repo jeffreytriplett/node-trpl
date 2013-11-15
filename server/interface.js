@@ -5,6 +5,7 @@ var overlay =
 	tabs = 
 	sheets = 
 	view = 
+	save = 
 	username = 
 	session = 
 	key = 
@@ -83,6 +84,9 @@ var updateFolderState = function(folder) {
 	if (folder) {
 		var container = folder.getElementsByClassName('children')[0];
 		var deleteButton = container.getElementsByClassName('delete-message')[0];
+		if (deleteButton && deleteButton.parentElement !== container) {
+			deleteButton = null;
+		}
 		var children = container.children;
 		var allMessages = true;
 		for (var i = 0; i < children.length; i++) {
@@ -107,6 +111,7 @@ window.onload = function() {
 	tabs = document.getElementById('tabs');
 	sheets = document.getElementById('sheets');
 	view = document.getElementById('view');
+	save = document.getElementById('save');
 	structure = document.getElementById('structure');
 	workspace = document.getElementById('workspace');
 	structure.style.width = (structureMinWidth - 25) + 'px';
@@ -197,7 +202,7 @@ window.onload = function() {
 					target.className = 'options-expanded';
 				} else if (action === 'name') {
 					if (category === 'imageOrFile') {
-						activateTabAndSheet('modify', target.innerHTML, '/u/' + parent.id.replace(/\.[a-zA-Z0-9]+$/g, '/'), function(sheet) {
+						activateTabAndSheet('modify', target.innerHTML, '/u/' + parent.id, function(sheet) {
 							sheet.innerHTML = '<iframe frameborder="0" width="100%" height="100%" src="' + insertSession('/m/' + parent.id) + '"></iframe>';
 						});
 					} else if (category === 'cssOrJs') {
@@ -343,6 +348,8 @@ window.onload = function() {
 		handleSpecialKeys(event);
 	};
 	loginContainer.getElementsByTagName('input')[0].focus();
+	view.style.display = 'none';
+	save.style.display = 'none';
 };
 
 var handleSpecialKeys = function(event) {
@@ -367,6 +374,9 @@ var closeTab = function(tab) {
 	q.remove(sheet);
 	if (newActive) {
 		focusTab(newActive);
+	} else if (tabs.children.length === 0) {
+		view.style.display = 'none';
+		save.style.display = 'none';
 	}
 }
 
@@ -383,7 +393,17 @@ var focusTab = function(tab) {
 	}
 	tab.className = 'active';
 	sheet.className = 'active';
-	view.href = insertSession(tab.id.substring(3));
+	var path = tab.id.substring(3);
+	if (path.match(/^\/(images|files|css|js)\/.+\/$/g)) {
+		view.style.display = 'none';
+		view.href = '';
+	} else {
+		if (path.match(/^\/(templates|components)\//g)) {
+			path = '/p' + path;
+		}
+		view.style.display = 'inline-block';
+		view.href = insertSession(path);
+	}
 };
 
 var activateTabAndSheet = function(type, label, id, loader) {
@@ -402,6 +422,7 @@ var activateTabAndSheet = function(type, label, id, loader) {
 		tab.innerHTML = type + ' - ' + label + '<span class="close">X</span>';
 		tabs.appendChild(tab);
 	}
+	save.style.display = 'inline-block';
 	focusTab(tab);
 };
 
@@ -411,8 +432,21 @@ var submitUploadForm = function(form) {
 };
 
 var uploadSuccess = function(path, extension) {
-	document.getElementById('//u' + path).getElementsByClassName('close')[0].innerHTML = 'X';
+	var tab = document.getElementById('//u' + path);
+	var sheet = document.getElementById('/u' + path);
+	if (tab.id.match(/\/$/g)) {
+		tab.id = tab.id.replace(/\/$/g, extension);
+		tab.childNodes[0].nodeValue += extension;
+	}
+	if (sheet.id.match(/\/$/g)) {
+		sheet.id = sheet.id.replace(/\/$/g, extension);
+	}
+	tab.getElementsByClassName('close')[0].innerHTML = 'X';
 	setStructureInput(document.getElementById(path.substring(1)), 'file', extension);
+	if (tab.className === 'active') {
+		view.style.display = 'inline-block';
+		view.href = insertSession(tab.id.substring(3));
+	}
 };
 
 var saveActive = function() {
@@ -437,12 +471,24 @@ var saveActive = function() {
 					});
 				} else {
 					post(sheetId, sheet.getElementsByTagName('textarea')[0].value, function(data) {
-						setStructureInput(file, 'file', '.' + parent.id.split('/')[0]);
+						if (tab.id.match(/\/$/g)) {
+							tab.id = tab.id.replace(/\/$/g, '.' + type);
+							tab.childNodes[0].nodeValue += '.' + type;
+						}
+						if (sheet.id.match(/\/$/g)) {
+							sheet.id = sheet.id.replace(/\/$/g, '.' + type);
+						}
 						tab.getElementsByClassName('close')[0].innerHTML = 'X';
+						setStructureInput(file, 'file', '.' + parent.id.split('/')[0]);
+						if (tab.className === 'active') {
+							view.style.display = 'inline-block';
+							view.href = insertSession(tab.id.substring(3));
+						}
 					});
 				}
 			} else if (type.match(/^(images|files)$/g)) {
-				uploadFunctions[sheetId.substring(2)](insertSession(sheetId));
+				var id = sheetId.replace(/\.[a-zA-Z0-9]+$/g, '/');
+				uploadFunctions[id.substring(2)](insertSession(id));
 			} else {
 				var current = sheet.children[0].getElementsByClassName('templates')[0].getElementsByClassName('current');
 				if (current.length > 0) {
@@ -492,12 +538,11 @@ var authenticate = function() {
 };
 
 var insertSession = function(path) {
-	var prefix = path.match(/^\/([oesmud]\/)?([tc]\/)?/g)[0];
-	if (session === null || prefix !== '/') {
-		return prefix + session + path.substring(prefix.length - 1);
-	} else {
-		return path;
+	var prefix = path.match(/^\/[oesmudp]\//g);
+	if (session !== null && prefix) {
+		return prefix[0] + session + path.substring(prefix[0].length - 1);
 	}
+	return path;
 };
 
 var setUpResponseHandler = function(success, failure) {

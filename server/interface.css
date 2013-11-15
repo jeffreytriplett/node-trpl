@@ -41,6 +41,7 @@ textarea { font-family: monospace; font-size: 13px; }
 #workspace .edit > div > div { margin-left: 0; }
 #workspace .edit span { font-size: 36px; }
 #workspace .edit div > div span { font-size: 24px; }
+#workspace .edit .string { white-space: nowrap; }
 #workspace .edit div > .object > span, #workspace .edit div > .array > span { font-size: 24px; }
 #workspace .edit > div > .object > span, #workspace .edit > div > .array > span { display: block; margin: 12px 0; font-size: 32px; }
 #workspace .edit div:first-child > textarea { display: none; }
